@@ -5,7 +5,6 @@ import static org.junit.Assert.assertThat;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.Charset;
 
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.fluent.Request;
@@ -19,13 +18,12 @@ public class ClientTest {
 	public void testQuickStart() throws URISyntaxException,
 			ClientProtocolException, IOException {
 
-		URI uri = new URIBuilder().setScheme("http").setHost("www.baidu.com")
-				.setPort(80).setPath("/s").addParameter("wd", "美")
-				.setCharset(Charset.forName("utf-8")).build();
+		URI uri = new URIBuilder("http://www.baidu.com/s").addParameter("wd",
+				"simple is not easy").build();
 
 		String entity = Request.Get(uri).connectTimeout(1000)
 				.socketTimeout(1000).execute().returnContent().asString();
 
-		assertThat(entity, new StringContains("美"));
+		assertThat(entity, new StringContains("simple"));
 	}
 }
