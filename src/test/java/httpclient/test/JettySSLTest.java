@@ -1,9 +1,30 @@
 package httpclient.test;
 
+import static org.junit.Assert.assertThat;
+
 import java.io.File;
+import java.io.FileInputStream;
+import java.security.KeyStore;
+import java.security.cert.X509Certificate;
+
+import javax.net.ssl.SSLContext;
 
 import jetty.HelloHandler;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.conn.ClientConnectionManager;
+import org.apache.http.conn.scheme.Scheme;
+import org.apache.http.conn.scheme.SchemeRegistry;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.conn.ssl.SSLContexts;
+import org.apache.http.conn.ssl.SSLSocketFactory;
+import org.apache.http.conn.ssl.TrustSelfSignedStrategy;
+import org.apache.http.conn.ssl.TrustStrategy;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.conn.PoolingClientConnectionManager;
+import org.apache.http.util.EntityUtils;
 import org.eclipse.jetty.http.HttpVersion;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.HttpConfiguration;
@@ -13,6 +34,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.SslConnectionFactory;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.hamcrest.core.StringContains;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -32,47 +54,23 @@ public class JettySSLTest {
 	public static void setup() throws Exception {
 		server = new Server();
 
-		// HTTP Configuration
-		// HttpConfiguration is a collection of configuration information
-		// appropriate for http and https. The default scheme for http is
-		// <code>http</code> of course, as the default for secured http is
-		// <code>https</code> but we show setting the scheme to show it can be
-		// done. The port for secured communication is also set here.
 		HttpConfiguration http_config = new HttpConfiguration();
 		http_config.setSecureScheme("https");
 		http_config.setSecurePort(8443);
 		http_config.setOutputBufferSize(32768);
 
-		// HTTP connector
-		// The first server connector we create is the one for http, passing in
-		// the http configuration we configured above so it can get things like
-		// the output buffer size, etc. We also set the port (8080) and
-		// configure an idle timeout.
 		ServerConnector http = new ServerConnector(server,
 				new HttpConnectionFactory(http_config));
 		http.setPort(8080);
 		http.setIdleTimeout(30000);
 
-		// SSL Context Factory for HTTPS and SPDY
-		// SSL requires a certificate so we configure a factory for ssl contents
-		// with information pointing to what keystore the ssl connection needs
-		// to know about. Much more configuration is available the ssl context,
-		// including things like choosing the particular certificate out of a
-		// keystore to be used.
 		SslContextFactory sslContextFactory = new SslContextFactory();
-		sslContextFactory.setKeyStorePath(new File(System
-				.getProperty("user.dir"), "data/httpclient.jks")
+		sslContextFactory.setKeyStorePath(new File("test-data/httpclient.jks")
 				.getAbsolutePath());
 		sslContextFactory.setKeyStorePassword("httpclient");
 		sslContextFactory.setKeyManagerPassword("httpclient");
 
-		// HTTPS Configuration
-		// A new HttpConfiguration object is needed for the next connector and
-		// you can pass the old one as an argument to effectively clone the
-		// contents. On this HttpConfiguration object we add a
-		// SecureRequestCustomizer which is how a new connector is able to
-		// resolve the https connection before handing control over to the Jetty
-		// Server.
+	
 		HttpConfiguration https_config = new HttpConfiguration(http_config);
 		https_config.addCustomizer(new SecureRequestCustomizer());
 
@@ -98,12 +96,53 @@ public class JettySSLTest {
 		server.setHandler(new HelloHandler());
 
 		server.start();
-		server.join();
+		// server.join();
 	}
 
 	@Test
-	public void echo() {
+	public void trustAll() throws Exception {
 
+		KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+		FileInputStream instream = new FileInputStream(new File(
+				"test-data/httpclient.jks"));
+		try {
+			trustStore.load(instream, "httpclient".toCharArray());
+		} finally {
+			instream.close();
+		}
+
+		// Trust own CA and all self-signed certs
+		SSLContext sslcontext = SSLContexts.custom()
+				.loadTrustMaterial(trustStore, new TrustSelfSignedStrategy())
+				.build();
+		// Allow TLSv1 protocol only
+		SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(
+				sslcontext, new String[] { "TLSv1" }, null,
+				SSLConnectionSocketFactory.BROWSER_COMPATIBLE_HOSTNAME_VERIFIER);
+
+		TrustStrategy acceptingTrustStrategy = new TrustStrategy() {
+			@Override
+			public boolean isTrusted(X509Certificate[] certificate,
+					String authType) {
+				return true;
+			}
+		};
+		SSLSocketFactory sf = new SSLSocketFactory(acceptingTrustStrategy,
+				SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
+		SchemeRegistry registry = new SchemeRegistry();
+		registry.register(new Scheme("https", 8443, sf));
+		ClientConnectionManager ccm = new PoolingClientConnectionManager(
+				registry);
+
+		HttpClient httpClient = new DefaultHttpClient(ccm);
+
+		String urlOverHttps = "https://localhost:8443";
+		HttpGet getMethod = new HttpGet(urlOverHttps);
+		HttpResponse response = httpClient.execute(getMethod);
+		String content = EntityUtils.toString(response.getEntity());
+		assertThat(content, new StringContains("Hello"));
+		
+		
 	}
 
 	@AfterClass
