@@ -96,7 +96,7 @@ public class JettySSLTest {
 		server.setHandler(new HelloHandler());
 
 		server.start();
-		// server.join();
+		 server.join();
 	}
 
 	@Test
