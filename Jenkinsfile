@@ -16,6 +16,7 @@ pipeline {
 
         stage ('Build') {
             steps {
+                sh 'test for pull request'
                 sh 'mvn -Dmaven.test.failure.ignore=true install' 
             }
             post {
