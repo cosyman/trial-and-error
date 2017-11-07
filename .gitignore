@@ -1,6 +1,9 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 
+.idea
+*.iml
+
 # Package Files
 *.jar
 *.war
@@ -16,3 +19,8 @@ bin
 
 test-output
 *.DS_Store
+
+
+*.p12
+*.jks
+*.mobileprovision
