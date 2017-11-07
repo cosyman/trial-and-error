@@ -24,3 +24,4 @@ test-output
 *.p12
 *.jks
 *.mobileprovision
+src/test/java/tmp
