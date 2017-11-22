@@ -17,7 +17,7 @@ pipeline {
           }
           post {
             success {
-              echo 'junit target/surefire-reports/**/*.xml'
+              sh 'echo \'junit target/surefire-reports/**/*.xml\''
               
             }
             
